@@ -1,8 +1,15 @@
 import axios from "axios";
 import { getToken, clearToken } from "../utils/auth";
 
+const configuredBaseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+const baseURL = configuredBaseURL
+  ? configuredBaseURL.endsWith("/api")
+    ? configuredBaseURL
+    : `${configuredBaseURL}/api`
+  : "http://localhost:5000/api";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  baseURL,
 });
 
 // Request interceptor - automatically add Bearer token (Fixed Bug-035)
