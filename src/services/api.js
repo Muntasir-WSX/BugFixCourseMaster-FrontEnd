@@ -5,26 +5,28 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
 });
 
-// Request interceptor - automatically add token
+// Request interceptor - automatically add Bearer token (Fixed Bug-035)
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
-      config.headers.Authorization = token;
+      config.headers.Authorization = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle errors globally
+// Response interceptor - handle errors globally (Fixed Bug-036: Loop prevention)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
       clearToken();
-      window.location.href = "/login";
+      // Prevent infinite redirect loop if already on /login
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

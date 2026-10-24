@@ -7,6 +7,8 @@ export const getAllEnrollments = (filters = {}) => api.get("/admin/enrollments",
 export const getAllAssignments = () => api.get("/admin/assignments");
 export const getAnalytics = () => api.get("/admin/analytics");
 export const reviewAssignment = (id, payload) => api.patch(`/admin/assignments/${id}/review`, payload);
+
+// User Management Routes (Aligned with backend /api/users)
 export const getAllUsers = () => api.get("/users");
 export const deleteUser = (id) => api.delete(`/users/${id}`);
 export const updateUserRole = (id, role) => api.patch(`/users/${id}/role`, { role });

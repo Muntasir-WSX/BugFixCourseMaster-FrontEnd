@@ -3,10 +3,10 @@ import { lazy, Suspense } from "react";
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
-// Public pages - keep these loaded immediately
+// Public pages - loaded immediately
 import Home from "./pages/Home/Home";
 import Courses from "./pages/Courses/Courses";
-import CourseDetails from "./pages/CousrseDetails/CourseDetails";
+import CourseDetails from "../src/pages/CousrseDetails/CourseDetails";
 import Login from "./pages/Login/Login";
 import Register from "./pages/Register/Register";
 import NotFound from "./pages/NotFound/NotFound";
@@ -25,77 +25,73 @@ const EditCourse = lazy(() => import("./pages/admin/pages/EditCourse"));
 const ManageUsers = lazy(() => import("./pages/admin/pages/ManageUsers"));
 const VideoClasses = lazy(() => import("./pages/admin/pages/VideoClasses"));
 
-// Loading component
+// Global fallback loading component
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen">
-    <span className="loading loading-spinner loading-lg"></span>
+    <span className="loading loading-spinner loading-lg text-primary"></span>
   </div>
 );
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Main public layout */}
-        <Route element={<MainLayout />}>
-          {/* public */}
-          <Route path="/" element={<Home />} />
-          <Route path="/courses" element={<Courses />} />
-          <Route path="/courses/:id" element={<CourseDetails />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
+          {/* Main public layout */}
+          <Route element={<MainLayout />}>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/courses" element={<Courses />} />
+            <Route path="/courses/:id" element={<CourseDetails />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* student dashboard (protected) */}
-          <Route
-            path="/student"
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<LoadingSpinner />}>
+            {/* Student Dashboard (Protected for Students) */}
+            <Route
+              path="/student"
+              element={
+                <ProtectedRoute allowedRoles={["student"]}>
                   <StudentDashboard />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* course player (protected) */}
-          <Route
-            path="/courses/:id/player"
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<LoadingSpinner />}>
+            {/* Course Player (Protected) */}
+            <Route
+              path="/courses/:id/player"
+              element={
+                <ProtectedRoute allowedRoles={["student", "admin"]}>
                   <CoursePlayer />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* admin dashboard with nested routes (protected) */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<LoadingSpinner />}>
+            {/* Admin Dashboard with Nested Routes (Protected for Admins - Fixed Bug-028) */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
                   <AdminDashboard />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          >
-            {/* nested admin pages */}
-            <Route index element={<Suspense fallback={<LoadingSpinner />}><AdminOverview /></Suspense>} />
-            <Route path="courses" element={<Suspense fallback={<LoadingSpinner />}><ManageCourses /></Suspense>} />
-            <Route path="courses/edit/:id" element={<Suspense fallback={<LoadingSpinner />}><EditCourse /></Suspense>} />
-            <Route path="courses/create" element={<Suspense fallback={<LoadingSpinner />}><CreateCourse /></Suspense>} />
-            <Route path="video-classes" element={<Suspense fallback={<LoadingSpinner />}><VideoClasses /></Suspense>} />
-            <Route path="enrollments" element={<Suspense fallback={<LoadingSpinner />}><Enrollments /></Suspense>} />
-            <Route path="assignments" element={<Suspense fallback={<LoadingSpinner />}><Assignments /></Suspense>} />
-            <Route path="analytics" element={<Suspense fallback={<LoadingSpinner />}><Analytics /></Suspense>} />
-            <Route path="users" element={<Suspense fallback={<LoadingSpinner />}><ManageUsers /></Suspense>} />
-          </Route>
+                </ProtectedRoute>
+              }
+            >
+              {/* Nested Admin Pages (Cleaned up redundant inner Suspense wrappers - Fixed Bug-029) */}
+              <Route index element={<AdminOverview />} />
+              <Route path="courses" element={<ManageCourses />} />
+              <Route path="courses/edit/:id" element={<EditCourse />} />
+              <Route path="courses/create" element={<CreateCourse />} />
+              <Route path="video-classes" element={<VideoClasses />} />
+              <Route path="enrollments" element={<Enrollments />} />
+              <Route path="assignments" element={<Assignments />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="users" element={<ManageUsers />} />
+            </Route>
 
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+            {/* 404 Route */}
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
