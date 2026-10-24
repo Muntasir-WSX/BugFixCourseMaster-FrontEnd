@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { User, BookOpen, Tag, ArrowRight, Star } from "lucide-react";
+import { BookOpen, ArrowRight, Star } from "lucide-react";
 
 export default function CourseCard({ course }) {
     const totalLessons = course.syllabus?.reduce((acc, mod) => acc + (mod.lessons?.length || 0), 0) || 0;
@@ -24,24 +24,31 @@ export default function CourseCard({ course }) {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs font-semibold text-base-content/80 relative z-10">
-                    <BookOpen className="w-4 h-4 text-primary" />
+                    <BookOpen className="w-4 h-4 text-primary shrink-0" />
                     <span>{course.syllabus?.length || 0} Modules</span>
-                    {totalLessons > 0 && <span>• {totalLessons} Lessons</span>}
+                    {totalLessons > 0 && (
+                        <>
+                            <span>•</span>
+                            <span>{totalLessons} Lessons</span>
+                        </>
+                    )}
                 </div>
             </div>
 
             <div className="card-body p-5 flex flex-col flex-1 justify-between space-y-4">
                 <div>
-                    <h2 className="card-title text-lg sm:text-xl font-bold leading-snug group-hover:text-primary transition-colors whitespace-nowrap overflow-visible">
+                    <h2 className="card-title text-lg sm:text-xl font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2 break-words">
                         {course.title}
                     </h2>
 
-                    <p className="text-sm text-base-content/70 mt-2 flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs">
+                    <div className="text-sm text-base-content/70 mt-3 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs shrink-0">
                             {course.instructorName ? course.instructorName[0].toUpperCase() : "I"}
                         </div>
-                        <span className="font-semibold text-xs text-base-content/80">By {course.instructorName}</span>
-                    </p>
+                        <span className="font-semibold text-xs text-base-content/80 truncate">
+                            By {course.instructorName || "Instructor"}
+                        </span>
+                    </div>
                 </div>
 
                 {course.tags && course.tags.length > 0 && (
@@ -57,11 +64,13 @@ export default function CourseCard({ course }) {
                 <div className="pt-4 border-t border-base-300 flex items-center justify-between mt-auto">
                     <div>
                         <span className="text-xs text-base-content/60 font-medium">Course Fee</span>
-                        <p className="font-black text-xl gradient-text">৳ {course.price?.toLocaleString()}</p>
+                        <p className="font-black text-xl text-primary">
+                            ৳ {course.price?.toLocaleString()}
+                        </p>
                     </div>
                     <Link
                         to={`/courses/${course._id}`}
-                        className="btn btn-primary btn-sm px-4 shadow-md hover:shadow-lg font-bold gap-1 group-hover:bg-secondary"
+                        className="btn btn-primary btn-sm px-4 shadow-md hover:shadow-lg font-bold gap-1 group-hover:btn-secondary"
                     >
                         Details <ArrowRight className="w-4 h-4" />
                     </Link>

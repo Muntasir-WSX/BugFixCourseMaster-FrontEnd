@@ -30,7 +30,7 @@ export default function EditCourse() {
     }, [dispatch, id, currentCourse]);
 
     useEffect(() => {
-        if (currentCourse) {
+        if (currentCourse && currentCourse._id === id) {
             setForm({
                 title: currentCourse.title || "",
                 description: currentCourse.description || "",
@@ -42,33 +42,46 @@ export default function EditCourse() {
                 syllabus: currentCourse.syllabus || [],
             });
         }
-    }, [currentCourse]);
+    }, [currentCourse, id]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setForm((s) => ({ ...s, [name]: name === "price" ? Number(value) : value }));
+        setForm((prev) => ({
+            ...prev,
+            [name]: name === "price" ? Number(value) : value,
+        }));
     };
 
     const addBatch = () => {
-        setForm((s) => ({
-            ...s,
-            batches: [...s.batches, { name: "", startDate: "" }],
+        setForm((prev) => ({
+            ...prev,
+            batches: [...prev.batches, { name: "", startDate: "" }],
         }));
     };
 
     const removeBatch = (idx) => {
-        setForm((s) => ({
-            ...s,
-            batches: s.batches.filter((_, i) => i !== idx),
+        setForm((prev) => ({
+            ...prev,
+            batches: prev.batches.filter((_, i) => i !== idx),
         }));
     };
 
     const updateBatch = (idx, field, value) => {
-        setForm((s) => {
-            const newBatches = [...s.batches];
+        setForm((prev) => {
+            const newBatches = [...prev.batches];
             newBatches[idx] = { ...newBatches[idx], [field]: value };
-            return { ...s, batches: newBatches };
+            return { ...prev, batches: newBatches };
         });
+    };
+
+    const formatDateForInput = (dateVal) => {
+        if (!dateVal) return "";
+        try {
+            if (typeof dateVal === "string") return dateVal.split("T")[0];
+            return new Date(dateVal).toISOString().split("T")[0];
+        } catch {
+            return "";
+        }
     };
 
     const handleSubmit = (e) => {
@@ -83,10 +96,10 @@ export default function EditCourse() {
             tags: form.tags
                 .split(",")
                 .map((t) => t.trim())
-                .filter((t) => t),
-            batches: form.batches.map(b => ({
+                .filter(Boolean),
+            batches: form.batches.map((b) => ({
                 ...b,
-                startDate: b.startDate ? new Date(b.startDate) : undefined
+                startDate: b.startDate ? new Date(b.startDate) : undefined,
             })),
             syllabus: form.syllabus,
         };
@@ -220,8 +233,10 @@ export default function EditCourse() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            const newSyllabus = form.syllabus.filter((_, i) => i !== modIdx);
-                                            setForm({ ...form, syllabus: newSyllabus });
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                syllabus: prev.syllabus.filter((_, i) => i !== modIdx),
+                                            }));
                                         }}
                                         className="btn btn-sm btn-error"
                                     >
@@ -237,9 +252,13 @@ export default function EditCourse() {
                                         type="text"
                                         value={module.title || ""}
                                         onChange={(e) => {
-                                            const newSyllabus = [...form.syllabus];
-                                            newSyllabus[modIdx].title = e.target.value;
-                                            setForm({ ...form, syllabus: newSyllabus });
+                                            const val = e.target.value;
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                syllabus: prev.syllabus.map((mod, i) =>
+                                                    i === modIdx ? { ...mod, title: val } : mod
+                                                ),
+                                            }));
                                         }}
                                         placeholder="e.g., Introduction to React"
                                         className="input input-bordered"
@@ -254,19 +273,27 @@ export default function EditCourse() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const newSyllabus = [...form.syllabus];
-                                                if (!newSyllabus[modIdx].lessons) {
-                                                    newSyllabus[modIdx].lessons = [];
-                                                }
-                                                newSyllabus[modIdx].lessons.push({
-                                                    title: "",
-                                                    videoUrl: "",
-                                                    liveClassLink: "",
-                                                    liveClassDate: "",
-                                                    assignmentPrompt: "",
-                                                    quiz: [],
-                                                });
-                                                setForm({ ...form, syllabus: newSyllabus });
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    syllabus: prev.syllabus.map((mod, i) =>
+                                                        i === modIdx
+                                                            ? {
+                                                                  ...mod,
+                                                                  lessons: [
+                                                                      ...(mod.lessons || []),
+                                                                      {
+                                                                          title: "",
+                                                                          videoUrl: "",
+                                                                          liveClassLink: "",
+                                                                          liveClassDate: "",
+                                                                          assignmentPrompt: "",
+                                                                          quiz: [],
+                                                                      },
+                                                                  ],
+                                                              }
+                                                            : mod
+                                                    ),
+                                                }));
                                             }}
                                             className="btn btn-sm btn-outline"
                                         >
@@ -282,9 +309,17 @@ export default function EditCourse() {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const newSyllabus = [...form.syllabus];
-                                                            newSyllabus[modIdx].lessons = newSyllabus[modIdx].lessons.filter((_, i) => i !== lesIdx);
-                                                            setForm({ ...form, syllabus: newSyllabus });
+                                                            setForm((prev) => ({
+                                                                ...prev,
+                                                                syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                    mIdx === modIdx
+                                                                        ? {
+                                                                              ...mod,
+                                                                              lessons: mod.lessons.filter((_, i) => i !== lesIdx),
+                                                                          }
+                                                                        : mod
+                                                                ),
+                                                            }));
                                                         }}
                                                         className="btn btn-xs btn-error"
                                                     >
@@ -301,19 +336,20 @@ export default function EditCourse() {
                                                             type="text"
                                                             value={lesson?.title || ""}
                                                             onChange={(e) => {
-                                                                const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                    if (mIdx === modIdx) {
-                                                                        const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                            if (lIdx === lesIdx) {
-                                                                                return { ...les, title: e.target.value };
-                                                                            }
-                                                                            return les;
-                                                                        });
-                                                                        return { ...mod, lessons: newLessons };
-                                                                    }
-                                                                    return mod;
-                                                                });
-                                                                setForm({ ...form, syllabus: newSyllabus });
+                                                                const val = e.target.value;
+                                                                setForm((prev) => ({
+                                                                    ...prev,
+                                                                    syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                        mIdx === modIdx
+                                                                            ? {
+                                                                                  ...mod,
+                                                                                  lessons: mod.lessons.map((les, lIdx) =>
+                                                                                      lIdx === lesIdx ? { ...les, title: val } : les
+                                                                                  ),
+                                                                              }
+                                                                            : mod
+                                                                    ),
+                                                                }));
                                                             }}
                                                             placeholder="e.g., Setting up React"
                                                             className="input input-bordered input-sm"
@@ -329,19 +365,20 @@ export default function EditCourse() {
                                                             type="url"
                                                             value={lesson?.videoUrl || ""}
                                                             onChange={(e) => {
-                                                                const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                    if (mIdx === modIdx) {
-                                                                        const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                            if (lIdx === lesIdx) {
-                                                                                return { ...les, videoUrl: e.target.value };
-                                                                            }
-                                                                            return les;
-                                                                        });
-                                                                        return { ...mod, lessons: newLessons };
-                                                                    }
-                                                                    return mod;
-                                                                });
-                                                                setForm({ ...form, syllabus: newSyllabus });
+                                                                const val = e.target.value;
+                                                                setForm((prev) => ({
+                                                                    ...prev,
+                                                                    syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                        mIdx === modIdx
+                                                                            ? {
+                                                                                  ...mod,
+                                                                                  lessons: mod.lessons.map((les, lIdx) =>
+                                                                                      lIdx === lesIdx ? { ...les, videoUrl: val } : les
+                                                                                  ),
+                                                                              }
+                                                                            : mod
+                                                                    ),
+                                                                }));
                                                             }}
                                                             placeholder="https://www.youtube.com/watch?v=..."
                                                             className="input input-bordered input-sm"
@@ -355,27 +392,25 @@ export default function EditCourse() {
                                                             <label className="label py-0">
                                                                 <span className="label-text font-semibold">Live Class (Optional)</span>
                                                             </label>
-                                                            {!lesson?.liveClassLink ? (
+                                                            {lesson?.liveClassLink === undefined ? (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        return {
-                                                                                            ...les,
-                                                                                            liveClassLink: "",
-                                                                                            liveClassDate: ""
-                                                                                        };
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                              lIdx === lesIdx
+                                                                                                  ? { ...les, liveClassLink: "", liveClassDate: "" }
+                                                                                                  : les
+                                                                                          ),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     className="btn btn-sm btn-outline btn-info"
                                                                 >
@@ -385,20 +420,23 @@ export default function EditCourse() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        const { liveClassLink, liveClassDate, ...rest } = les;
-                                                                                        return rest;
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) => {
+                                                                                              if (lIdx === lesIdx) {
+                                                                                                  const { liveClassLink, liveClassDate, ...rest } = les;
+                                                                                                  return rest;
+                                                                                              }
+                                                                                              return les;
+                                                                                          }),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     className="btn btn-sm btn-ghost btn-error"
                                                                 >
@@ -406,28 +444,27 @@ export default function EditCourse() {
                                                                 </button>
                                                             )}
                                                         </div>
+
                                                         {lesson?.liveClassLink !== undefined && (
                                                             <div className="space-y-2">
                                                                 <input
                                                                     type="url"
                                                                     value={lesson?.liveClassLink || ""}
                                                                     onChange={(e) => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        return {
-                                                                                            ...les,
-                                                                                            liveClassLink: e.target.value
-                                                                                        };
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        const val = e.target.value;
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                              lIdx === lesIdx ? { ...les, liveClassLink: val } : les
+                                                                                          ),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     placeholder="https://meet.google.com/xxx-xxxx-xxx or https://zoom.us/j/xxxxx"
                                                                     className="input input-bordered input-sm w-full"
@@ -436,22 +473,20 @@ export default function EditCourse() {
                                                                     type="datetime-local"
                                                                     value={lesson?.liveClassDate ? new Date(lesson.liveClassDate).toISOString().slice(0, 16) : ""}
                                                                     onChange={(e) => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        return {
-                                                                                            ...les,
-                                                                                            liveClassDate: e.target.value ? new Date(e.target.value).toISOString() : ""
-                                                                                        };
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        const val = e.target.value ? new Date(e.target.value).toISOString() : "";
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                              lIdx === lesIdx ? { ...les, liveClassDate: val } : les
+                                                                                          ),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     className="input input-bordered input-sm w-full"
                                                                 />
@@ -465,26 +500,23 @@ export default function EditCourse() {
                                                             <label className="label py-0">
                                                                 <span className="label-text font-semibold">Assignment</span>
                                                             </label>
-                                                            {!lesson?.assignmentPrompt ? (
+                                                            {lesson?.assignmentPrompt === undefined ? (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        return {
-                                                                                            ...les,
-                                                                                            assignmentPrompt: ""
-                                                                                        };
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                              lIdx === lesIdx ? { ...les, assignmentPrompt: "" } : les
+                                                                                          ),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     className="btn btn-sm btn-outline btn-secondary"
                                                                 >
@@ -494,20 +526,23 @@ export default function EditCourse() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                            if (mIdx === modIdx) {
-                                                                                const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                    if (lIdx === lesIdx) {
-                                                                                        const { assignmentPrompt, ...rest } = les;
-                                                                                        return rest;
-                                                                                    }
-                                                                                    return les;
-                                                                                });
-                                                                                return { ...mod, lessons: newLessons };
-                                                                            }
-                                                                            return mod;
-                                                                        });
-                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                        setForm((prev) => ({
+                                                                            ...prev,
+                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                mIdx === modIdx
+                                                                                    ? {
+                                                                                          ...mod,
+                                                                                          lessons: mod.lessons.map((les, lIdx) => {
+                                                                                              if (lIdx === lesIdx) {
+                                                                                                  const { assignmentPrompt, ...rest } = les;
+                                                                                                  return rest;
+                                                                                              }
+                                                                                              return les;
+                                                                                          }),
+                                                                                      }
+                                                                                    : mod
+                                                                            ),
+                                                                        }));
                                                                     }}
                                                                     className="btn btn-sm btn-ghost btn-error"
                                                                 >
@@ -515,29 +550,25 @@ export default function EditCourse() {
                                                                 </button>
                                                             )}
                                                         </div>
+
                                                         {lesson?.assignmentPrompt !== undefined && (
                                                             <textarea
                                                                 value={lesson?.assignmentPrompt || ""}
                                                                 onChange={(e) => {
-                                                                    const newSyllabus = form.syllabus.map((mod, mIdx) => {
-                                                                        if (mIdx === modIdx) {
-                                                                            const newLessons = mod.lessons.map((les, lIdx) => {
-                                                                                if (lIdx === lesIdx) {
-                                                                                    return {
-                                                                                        ...les,
-                                                                                        assignmentPrompt: e.target.value
-                                                                                    };
-                                                                                }
-                                                                                return les;
-                                                                            });
-                                                                            return {
-                                                                                ...mod,
-                                                                                lessons: newLessons
-                                                                            };
-                                                                        }
-                                                                        return mod;
-                                                                    });
-                                                                    setForm({ ...form, syllabus: newSyllabus });
+                                                                    const val = e.target.value;
+                                                                    setForm((prev) => ({
+                                                                        ...prev,
+                                                                        syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                            mIdx === modIdx
+                                                                                ? {
+                                                                                      ...mod,
+                                                                                      lessons: mod.lessons.map((les, lIdx) =>
+                                                                                          lIdx === lesIdx ? { ...les, assignmentPrompt: val } : les
+                                                                                      ),
+                                                                                  }
+                                                                                : mod
+                                                                        ),
+                                                                    }));
                                                                 }}
                                                                 placeholder="Enter assignment instructions..."
                                                                 className="textarea textarea-bordered textarea-sm w-full"
@@ -555,16 +586,31 @@ export default function EditCourse() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    const newSyllabus = [...form.syllabus];
-                                                                    if (!newSyllabus[modIdx].lessons[lesIdx].quiz) {
-                                                                        newSyllabus[modIdx].lessons[lesIdx].quiz = [];
-                                                                    }
-                                                                    newSyllabus[modIdx].lessons[lesIdx].quiz.push({
-                                                                        question: "",
-                                                                        options: ["", "", "", ""],
-                                                                        correctIndex: 0,
-                                                                    });
-                                                                    setForm({ ...form, syllabus: newSyllabus });
+                                                                    setForm((prev) => ({
+                                                                        ...prev,
+                                                                        syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                            mIdx === modIdx
+                                                                                ? {
+                                                                                      ...mod,
+                                                                                      lessons: mod.lessons.map((les, lIdx) =>
+                                                                                          lIdx === lesIdx
+                                                                                              ? {
+                                                                                                    ...les,
+                                                                                                    quiz: [
+                                                                                                        ...(les.quiz || []),
+                                                                                                        {
+                                                                                                            question: "",
+                                                                                                            options: ["", "", "", ""],
+                                                                                                            correctIndex: 0,
+                                                                                                        },
+                                                                                                    ],
+                                                                                                }
+                                                                                              : les
+                                                                                      ),
+                                                                                  }
+                                                                                : mod
+                                                                        ),
+                                                                    }));
                                                                 }}
                                                                 className="btn btn-xs btn-outline"
                                                             >
@@ -580,9 +626,24 @@ export default function EditCourse() {
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => {
-                                                                                const newSyllabus = [...form.syllabus];
-                                                                                newSyllabus[modIdx].lessons[lesIdx].quiz = newSyllabus[modIdx].lessons[lesIdx].quiz.filter((_, i) => i !== qIdx);
-                                                                                setForm({ ...form, syllabus: newSyllabus });
+                                                                                setForm((prev) => ({
+                                                                                    ...prev,
+                                                                                    syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                        mIdx === modIdx
+                                                                                            ? {
+                                                                                                  ...mod,
+                                                                                                  lessons: mod.lessons.map((les, lIdx) =>
+                                                                                                      lIdx === lesIdx
+                                                                                                          ? {
+                                                                                                                ...les,
+                                                                                                                quiz: les.quiz.filter((_, i) => i !== qIdx),
+                                                                                                            }
+                                                                                                          : les
+                                                                                                  ),
+                                                                                              }
+                                                                                            : mod
+                                                                                    ),
+                                                                                }));
                                                                             }}
                                                                             className="btn btn-xs btn-error"
                                                                         >
@@ -594,9 +655,27 @@ export default function EditCourse() {
                                                                         type="text"
                                                                         value={quizItem.question || ""}
                                                                         onChange={(e) => {
-                                                                            const newSyllabus = [...form.syllabus];
-                                                                            newSyllabus[modIdx].lessons[lesIdx].quiz[qIdx].question = e.target.value;
-                                                                            setForm({ ...form, syllabus: newSyllabus });
+                                                                            const val = e.target.value;
+                                                                            setForm((prev) => ({
+                                                                                ...prev,
+                                                                                syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                    mIdx === modIdx
+                                                                                        ? {
+                                                                                              ...mod,
+                                                                                              lessons: mod.lessons.map((les, lIdx) =>
+                                                                                                  lIdx === lesIdx
+                                                                                                      ? {
+                                                                                                            ...les,
+                                                                                                            quiz: les.quiz.map((q, i) =>
+                                                                                                                i === qIdx ? { ...q, question: val } : q
+                                                                                                            ),
+                                                                                                        }
+                                                                                                      : les
+                                                                                              ),
+                                                                                          }
+                                                                                        : mod
+                                                                                ),
+                                                                            }));
                                                                         }}
                                                                         placeholder="Enter question"
                                                                         className="input input-bordered input-sm mb-2"
@@ -610,9 +689,26 @@ export default function EditCourse() {
                                                                                     name={`quiz-${modIdx}-${lesIdx}-${qIdx}`}
                                                                                     checked={quizItem.correctIndex === optIdx}
                                                                                     onChange={() => {
-                                                                                        const newSyllabus = [...form.syllabus];
-                                                                                        newSyllabus[modIdx].lessons[lesIdx].quiz[qIdx].correctIndex = optIdx;
-                                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                                        setForm((prev) => ({
+                                                                                            ...prev,
+                                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                                mIdx === modIdx
+                                                                                                    ? {
+                                                                                                          ...mod,
+                                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                                              lIdx === lesIdx
+                                                                                                                  ? {
+                                                                                                                        ...les,
+                                                                                                                        quiz: les.quiz.map((q, i) =>
+                                                                                                                            i === qIdx ? { ...q, correctIndex: optIdx } : q
+                                                                                                                        ),
+                                                                                                                    }
+                                                                                                                  : les
+                                                                                                          ),
+                                                                                                      }
+                                                                                                    : mod
+                                                                                            ),
+                                                                                        }));
                                                                                     }}
                                                                                     className="radio radio-xs"
                                                                                 />
@@ -620,9 +716,34 @@ export default function EditCourse() {
                                                                                     type="text"
                                                                                     value={option || ""}
                                                                                     onChange={(e) => {
-                                                                                        const newSyllabus = [...form.syllabus];
-                                                                                        newSyllabus[modIdx].lessons[lesIdx].quiz[qIdx].options[optIdx] = e.target.value;
-                                                                                        setForm({ ...form, syllabus: newSyllabus });
+                                                                                        const val = e.target.value;
+                                                                                        setForm((prev) => ({
+                                                                                            ...prev,
+                                                                                            syllabus: prev.syllabus.map((mod, mIdx) =>
+                                                                                                mIdx === modIdx
+                                                                                                    ? {
+                                                                                                          ...mod,
+                                                                                                          lessons: mod.lessons.map((les, lIdx) =>
+                                                                                                              lIdx === lesIdx
+                                                                                                                  ? {
+                                                                                                                        ...les,
+                                                                                                                        quiz: les.quiz.map((q, i) =>
+                                                                                                                            i === qIdx
+                                                                                                                                ? {
+                                                                                                                                      ...q,
+                                                                                                                                      options: q.options.map((opt, oIdx) =>
+                                                                                                                                          oIdx === optIdx ? val : opt
+                                                                                                                                      ),
+                                                                                                                                  }
+                                                                                                                                : q
+                                                                                                                        ),
+                                                                                                                    }
+                                                                                                                  : les
+                                                                                                          ),
+                                                                                                      }
+                                                                                                    : mod
+                                                                                            ),
+                                                                                        }));
                                                                                     }}
                                                                                     placeholder={`Option ${optIdx + 1}`}
                                                                                     className="input input-bordered input-sm flex-1"
@@ -646,10 +767,10 @@ export default function EditCourse() {
                     <button
                         type="button"
                         onClick={() => {
-                            setForm({
-                                ...form,
-                                syllabus: [...form.syllabus, { title: "", lessons: [] }],
-                            });
+                            setForm((prev) => ({
+                                ...prev,
+                                syllabus: [...prev.syllabus, { title: "", lessons: [] }],
+                            }));
                         }}
                         className="btn btn-outline btn-sm w-full"
                     >
@@ -683,7 +804,7 @@ export default function EditCourse() {
                                         </label>
                                         <input
                                             type="date"
-                                            value={batch.startDate ? (typeof batch.startDate === 'string' ? batch.startDate.split("T")[0] : new Date(batch.startDate).toISOString().split("T")[0]) : ""}
+                                            value={formatDateForInput(batch.startDate)}
                                             onChange={(e) => updateBatch(idx, "startDate", e.target.value)}
                                             className="input input-bordered input-sm"
                                         />

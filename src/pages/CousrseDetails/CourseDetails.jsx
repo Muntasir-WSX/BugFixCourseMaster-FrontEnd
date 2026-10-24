@@ -20,10 +20,11 @@ export default function CourseDetails() {
 
     useEffect(() => {
         dispatch(fetchCourseById(id));
-        return () => dispatch(clearCurrentCourse());
+        return () => {
+            dispatch(clearCurrentCourse());
+        };
     }, [id, dispatch]);
 
-    // Load user if token exists but user is not loaded
     useEffect(() => {
         if (token && !user) {
             dispatch(getMeAsync());
@@ -37,12 +38,11 @@ export default function CourseDetails() {
     const alreadyEnrolled = !!myEnrollments?.find((e) => e.course?._id === id);
 
     const handleEnroll = async () => {
-        // if user object not present but token exists, attempt to fetch profile
         if (!user && token) {
             try {
                 await dispatch(getMeAsync()).unwrap();
             } catch (err) {
-                // ignore, will redirect to login below
+                // Ignore, will redirect to login
             }
         }
 
@@ -53,9 +53,10 @@ export default function CourseDetails() {
 
         if (cannotEnroll) return;
 
-        // Note: Since batches don't have _id in the model, we pass null
-        // The backend can be updated later to handle batch references properly
-        dispatch(enrollCourseAsync({ courseId: id, batchId: selectedBatchId !== null ? selectedBatchId.toString() : null }));
+        dispatch(enrollCourseAsync({ 
+            courseId: id, 
+            batchId: selectedBatchId !== null ? selectedBatchId.toString() : null 
+        }));
     };
 
     useEffect(() => {
@@ -113,7 +114,9 @@ export default function CourseDetails() {
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text'
-                        }}>৳ {course.price * 100}</p>
+                        }}>
+                            ৳ {course.price}
+                        </p>
 
                         <div>
                             {isAdmin ? (
@@ -165,7 +168,7 @@ export default function CourseDetails() {
                 </div>
             </div>
 
-            {/* Show syllabus only if enrolled OR if admin */}
+            {/* Syllabus section */}
             {(alreadyEnrolled || isAdmin) && course.syllabus && course.syllabus.length > 0 && (
                 <div className="card bg-base-100 border border-base-300 shadow-sm">
                     <div className="card-body p-4 sm:p-6">
@@ -220,7 +223,6 @@ export default function CourseDetails() {
                 </div>
             )}
 
-            {/* Show message if not enrolled and not admin */}
             {!alreadyEnrolled && !isAdmin && course.syllabus && course.syllabus.length > 0 && (
                 <div className="card bg-base-100 border border-base-300 shadow-sm">
                     <div className="card-body">
@@ -232,7 +234,6 @@ export default function CourseDetails() {
                 </div>
             )}
 
-            {/* Show "Add Syllabus" option for admin if no syllabus exists */}
             {isAdmin && (!course.syllabus || course.syllabus.length === 0) && (
                 <div className="card bg-base-100 border border-base-300 shadow-sm">
                     <div className="card-body">
@@ -256,13 +257,11 @@ export default function CourseDetails() {
                         <h2 className="page-heading-h2 mb-4">Available Batches</h2>
                         <div className="space-y-2">
                             {course.batches.map((batch, idx) => {
-                                // Use index as batch identifier since batches don't have _id
-                                const batchIndex = idx;
-                                const isSelected = selectedBatchId === batchIndex;
+                                const isSelected = selectedBatchId === idx;
                                 return (
                                     <div
                                         key={idx}
-                                        onClick={() => setSelectedBatchId(isSelected ? null : batchIndex)}
+                                        onClick={() => setSelectedBatchId(isSelected ? null : idx)}
                                         className={`flex justify-between items-center p-3 rounded cursor-pointer transition ${isSelected
                                             ? "bg-primary text-primary-content border-2 border-primary"
                                             : "bg-base-200 hover:bg-base-300 border-2 border-transparent"
@@ -272,7 +271,7 @@ export default function CourseDetails() {
                                             <input
                                                 type="radio"
                                                 checked={isSelected}
-                                                onChange={() => setSelectedBatchId(isSelected ? null : batchIndex)}
+                                                onChange={() => setSelectedBatchId(isSelected ? null : idx)}
                                                 className="radio radio-sm"
                                                 onClick={(e) => e.stopPropagation()}
                                             />
@@ -285,7 +284,7 @@ export default function CourseDetails() {
                                 );
                             })}
                         </div>
-                        {selectedBatchId && (
+                        {selectedBatchId !== null && (
                             <div className="mt-3 text-sm text-primary">
                                 ✓ Batch selected for enrollment
                             </div>

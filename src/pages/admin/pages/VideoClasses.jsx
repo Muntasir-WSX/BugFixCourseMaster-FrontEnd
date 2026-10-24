@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchCourses, fetchCourseById } from "../../../store/slices/coursesSlice";
+import { fetchCourses } from "../../../store/slices/coursesSlice";
 import { updateCourseAsync } from "../../../store/slices/adminSlice";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Video, Calendar, ExternalLink, Clock, Play, X, Monitor } from "lucide-react";
 
 export default function VideoClasses() {
     const dispatch = useDispatch();
-    const { courses, loading } = useSelector((state) => state.courses);
+    const navigate = useNavigate();
+
+    const { courses = [], loading } = useSelector((state) => state.courses);
     const { updating } = useSelector((state) => state.admin);
-    const [filter, setFilter] = useState("all"); // all, upcoming, past
+
+    const [filter, setFilter] = useState("all");
     const [showStartClassModal, setShowStartClassModal] = useState(false);
     const [selectedClass, setSelectedClass] = useState(null);
 
@@ -17,32 +20,36 @@ export default function VideoClasses() {
         dispatch(fetchCourses({ page: 1, limit: 100 }));
     }, [dispatch]);
 
-    // Extract all live classes from all courses
-    const getAllLiveClasses = () => {
+    const allLiveClasses = useMemo(() => {
         const liveClasses = [];
+        if (!Array.isArray(courses)) return liveClasses;
+
         courses.forEach((course) => {
-            if (course.syllabus && course.syllabus.length > 0) {
+            if (Array.isArray(course?.syllabus)) {
                 course.syllabus.forEach((module) => {
-                    if (module.lessons && module.lessons.length > 0) {
+                    if (Array.isArray(module?.lessons)) {
                         module.lessons.forEach((lesson) => {
-                            if (lesson.liveClassLink) {
-                                const liveClassDate = lesson.liveClassDate 
-                                    ? new Date(lesson.liveClassDate) 
+                            if (lesson?.liveClassLink) {
+                                const liveClassDate = lesson.liveClassDate
+                                    ? new Date(lesson.liveClassDate)
                                     : null;
-                                const isUpcoming = liveClassDate && liveClassDate > new Date();
-                                const isPast = liveClassDate && liveClassDate < new Date();
+                                const isValidDate = liveClassDate && !isNaN(liveClassDate.getTime());
+                                const now = new Date();
+
+                                const isUpcoming = isValidDate && liveClassDate > now;
+                                const isPast = isValidDate && liveClassDate < now;
 
                                 liveClasses.push({
                                     id: lesson._id,
                                     courseId: course._id,
-                                    courseTitle: course.title,
-                                    moduleTitle: module.title,
-                                    lessonTitle: lesson.title,
+                                    courseTitle: course.title || "Untitled Course",
+                                    moduleTitle: module.title || "Untitled Module",
+                                    lessonTitle: lesson.title || "Untitled Lesson",
                                     liveClassLink: lesson.liveClassLink,
-                                    liveClassDate: liveClassDate,
+                                    liveClassDate: isValidDate ? liveClassDate : null,
                                     isUpcoming,
                                     isPast,
-                                    hasDate: !!liveClassDate,
+                                    hasDate: isValidDate,
                                 });
                             }
                         });
@@ -51,39 +58,32 @@ export default function VideoClasses() {
             }
         });
         return liveClasses;
-    };
+    }, [courses]);
 
-    const allLiveClasses = getAllLiveClasses();
+    const filteredLiveClasses = useMemo(() => {
+        return allLiveClasses.filter((lc) => {
+            if (filter === "upcoming") return lc.isUpcoming;
+            if (filter === "past") return lc.isPast;
+            return true;
+        });
+    }, [allLiveClasses, filter]);
 
-    // Filter live classes
-    const filteredLiveClasses = allLiveClasses.filter((lc) => {
-        if (filter === "upcoming") return lc.isUpcoming;
-        if (filter === "past") return lc.isPast;
-        return true;
-    });
+    const sortedLiveClasses = useMemo(() => {
+        return [...filteredLiveClasses].sort((a, b) => {
+            if (!a.liveClassDate && !b.liveClassDate) return 0;
+            if (!a.liveClassDate) return 1;
+            if (!b.liveClassDate) return -1;
+            if (a.isUpcoming && !b.isUpcoming) return -1;
+            if (!a.isUpcoming && b.isUpcoming) return 1;
+            return a.liveClassDate - b.liveClassDate;
+        });
+    }, [filteredLiveClasses]);
 
-    // Sort by date (upcoming first, then past)
-    const sortedLiveClasses = [...filteredLiveClasses].sort((a, b) => {
-        if (!a.liveClassDate && !b.liveClassDate) return 0;
-        if (!a.liveClassDate) return 1;
-        if (!b.liveClassDate) return -1;
-        if (a.isUpcoming && !b.isUpcoming) return -1;
-        if (!a.isUpcoming && b.isUpcoming) return 1;
-        return a.liveClassDate - b.liveClassDate;
-    });
+    const upcomingCount = useMemo(() => allLiveClasses.filter((lc) => lc.isUpcoming).length, [allLiveClasses]);
+    const pastCount = useMemo(() => allLiveClasses.filter((lc) => lc.isPast).length, [allLiveClasses]);
 
-    const upcomingCount = allLiveClasses.filter((lc) => lc.isUpcoming).length;
-    const pastCount = allLiveClasses.filter((lc) => lc.isPast).length;
-
-    // Open Zoom to create meeting
-    const openZoom = () => {
-        window.open("https://zoom.us/meeting/schedule", "_blank");
-    };
-
-    // Handle Start Class - show modal
     const handleStartClass = (liveClass) => {
         if (!liveClass) {
-            // If no live class selected, show message to select from list or create course
             alert("Please select a class from the list below, or create a new course with a lesson first.");
             return;
         }
@@ -91,58 +91,46 @@ export default function VideoClasses() {
         setShowStartClassModal(true);
     };
 
-    // Handle Zoom option
-    const handleZoom = async () => {
-        // Open Zoom in new tab
-        openZoom();
-        
+    const handleZoom = () => {
+        window.open("https://zoom.us/meeting/schedule", "_blank");
+
         if (selectedClass) {
-            // Show instructions
-            alert("Zoom meeting page opened. After creating the meeting, copy the meeting link and paste it in the course edit page.");
+            alert("Zoom meeting page opened. After creating the meeting, copy the link and paste it on the course edit page.");
             setShowStartClassModal(false);
-            // Navigate to edit course page
-            window.location.href = `/admin/courses/edit/${selectedClass.courseId}`;
+            navigate(`/admin/courses/edit/${selectedClass.courseId}`);
         } else {
-            // No class selected - just open Zoom
-            alert("Zoom meeting page opened. After creating the meeting, copy the meeting link and add it to a course lesson in the course edit page.");
+            alert("Zoom meeting page opened. After creating the meeting, copy the link and add it to a lesson in the course edit page.");
             setShowStartClassModal(false);
         }
     };
 
-    // Handle Meet option - generate instant meeting
     const handleMeet = async () => {
-        // Open Meet in new tab
         window.open("https://meet.google.com/new", "_blank");
-        
+
         if (selectedClass) {
-            // Prompt user to paste the meeting link
             const meetLink = prompt(
                 "Google Meet opened in a new tab.\n\n" +
-                "Please:\n" +
-                "1. Copy the meeting link from the Google Meet tab\n" +
+                "1. Copy the meeting link from Google Meet\n" +
                 "2. Paste it here\n\n" +
                 "Or click Cancel to add it manually later.",
                 ""
             );
-            
+
             if (meetLink && meetLink.trim()) {
-                // Update the course with the Meet link
                 try {
-                    // Find the course
-                    const course = courses.find(c => c._id === selectedClass.courseId);
+                    const course = courses.find((c) => c._id === selectedClass.courseId);
                     if (!course) {
                         alert("Course not found");
                         return;
                     }
 
-                    // Find and update the lesson with the Meet link
-                    const updatedSyllabus = course.syllabus.map(module => {
-                        const updatedLessons = module.lessons.map(lesson => {
+                    const updatedSyllabus = course.syllabus.map((module) => {
+                        const updatedLessons = (module.lessons || []).map((lesson) => {
                             if (lesson._id === selectedClass.id) {
                                 return {
                                     ...lesson,
                                     liveClassLink: meetLink.trim(),
-                                    liveClassDate: new Date().toISOString()
+                                    liveClassDate: new Date().toISOString(),
                                 };
                             }
                             return lesson;
@@ -150,15 +138,14 @@ export default function VideoClasses() {
                         return { ...module, lessons: updatedLessons };
                     });
 
-                    // Update course
-                    await dispatch(updateCourseAsync({
-                        id: selectedClass.courseId,
-                        data: { syllabus: updatedSyllabus }
-                    })).unwrap();
+                    await dispatch(
+                        updateCourseAsync({
+                            id: selectedClass.courseId,
+                            data: { syllabus: updatedSyllabus },
+                        })
+                    ).unwrap();
 
                     alert("✅ Google Meet link saved successfully!");
-                    
-                    // Refresh courses
                     dispatch(fetchCourses({ page: 1, limit: 100 }));
                 } catch (err) {
                     alert("Failed to save Meet link. Please add it manually in the course edit page.");
@@ -166,10 +153,9 @@ export default function VideoClasses() {
                 }
             }
         } else {
-            // No class selected - just open Meet
-            alert("Google Meet opened in a new tab. Copy the meeting link and add it to a course lesson in the course edit page.");
+            alert("Google Meet opened in a new tab. Copy the meeting link and add it to a course lesson on the course edit page.");
         }
-        
+
         setShowStartClassModal(false);
     };
 
@@ -240,9 +226,7 @@ export default function VideoClasses() {
                     <div className="card-body p-6 text-center">
                         <Video className="w-12 h-12 mx-auto mb-4 text-base-content/30" />
                         <h3 className="text-lg font-semibold mb-2">
-                            {filter === "all"
-                                ? "No live classes found"
-                                : `No ${filter} live classes found`}
+                            {filter === "all" ? "No live classes found" : `No ${filter} live classes found`}
                         </h3>
                         <p className="text-sm text-base-content/70 mb-4">
                             {filter === "all"
@@ -261,10 +245,7 @@ export default function VideoClasses() {
                                     <Play className="w-4 h-4" />
                                     Start New Class
                                 </button>
-                                <Link
-                                    to="/admin/courses"
-                                    className="btn btn-outline"
-                                >
+                                <Link to="/admin/courses" className="btn btn-outline">
                                     Manage Courses
                                 </Link>
                             </div>
@@ -313,12 +294,8 @@ export default function VideoClasses() {
                                                 <Calendar className="w-4 h-4" />
                                                 <span className="font-semibold">Scheduled:</span>
                                                 <span>{lc.liveClassDate.toLocaleString()}</span>
-                                                {lc.isUpcoming && (
-                                                    <span className="badge badge-success badge-sm">Upcoming</span>
-                                                )}
-                                                {lc.isPast && (
-                                                    <span className="badge badge-ghost badge-sm">Past</span>
-                                                )}
+                                                {lc.isUpcoming && <span className="badge badge-success badge-sm">Upcoming</span>}
+                                                {lc.isPast && <span className="badge badge-ghost badge-sm">Past</span>}
                                             </div>
                                         )}
 
@@ -380,18 +357,19 @@ export default function VideoClasses() {
                             </div>
 
                             {selectedClass ? (
-                                <div className="mb-4 p-3 bg-base-200 rounded-lg">
-                                    <p className="text-sm font-semibold mb-1">Class Details:</p>
-                                    <p className="text-sm">{selectedClass.lessonTitle}</p>
-                                    <p className="text-xs text-base-content/70">
-                                        {selectedClass.courseTitle} - {selectedClass.moduleTitle}
-                                    </p>
+                                <div className="mb-4 p-3 bg-base-200 rounded-lg space-y-1">
+                                    <p className="text-sm font-semibold">Class Details:</p>
+                                    <p className="text-sm font-medium text-primary">{selectedClass.lessonTitle}</p>
+                                    <div className="text-xs text-base-content/70 flex flex-col">
+                                        <span>Course: {selectedClass.courseTitle}</span>
+                                        <span>Module: {selectedClass.moduleTitle}</span>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
                                     <p className="text-sm font-semibold mb-1 text-warning">⚠️ No Course Selected</p>
                                     <p className="text-xs text-base-content/70">
-                                        The meeting link will be generated. You can add it to a course lesson later in the course edit page.
+                                        The meeting link will be generated. You can add it to a course lesson later on the course edit page.
                                     </p>
                                 </div>
                             )}
@@ -441,8 +419,7 @@ export default function VideoClasses() {
 
                             <div className="mt-4 pt-4 border-t border-base-300">
                                 <p className="text-xs text-base-content/50">
-                                    💡 Tip: For Google Meet, the link will be automatically saved to your course.
-                                    For Zoom, you'll need to copy the meeting link and add it manually.
+                                    💡 Tip: For Google Meet, the link will be automatically saved to your course. For Zoom, you'll need to copy the meeting link and add it manually.
                                 </p>
                             </div>
                         </div>
@@ -452,4 +429,3 @@ export default function VideoClasses() {
         </div>
     );
 }
-

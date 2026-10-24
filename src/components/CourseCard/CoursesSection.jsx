@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import { getCourses } from "../../services/courses.api";
@@ -13,7 +13,7 @@ export default function CoursesSection() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // query states
+    // Filter & query parameters
     const [page, setPage] = useState(1);
     const [limit] = useState(8);
     const [search, setSearch] = useState("");
@@ -21,7 +21,7 @@ export default function CoursesSection() {
     const [category, setCategory] = useState("");
     const [tags, setTags] = useState("");
 
-    const fetchCourses = async () => {
+    const fetchCourses = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -29,26 +29,25 @@ export default function CoursesSection() {
             const params = {
                 page,
                 limit,
-                search: search || undefined,
+                search: search.trim() || undefined,
                 sort: sort || undefined,
-                category: category || undefined,
-                tags: tags || undefined,
+                category: category.trim() || undefined,
+                tags: tags.trim() || undefined,
             };
 
             const res = await getCourses(params);
             setCourses(res.data.courses || []);
             setTotalPages(res.data.totalPages || 1);
         } catch (err) {
-            setError("Failed to load courses");
+            setError("Failed to load courses. Please try again later.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, limit, search, sort, category, tags]);
 
     useEffect(() => {
         fetchCourses();
-        // eslint-disable-next-line
-    }, [page, sort, category, tags]);
+    }, [fetchCourses]);
 
     const onSearchSubmit = (e) => {
         e.preventDefault();
@@ -56,56 +55,67 @@ export default function CoursesSection() {
         fetchCourses();
     };
 
-    // reset page when filters change
-    useEffect(() => {
+    const handleResetFilters = () => {
+        setSearch("");
+        setSort("");
+        setCategory("");
+        setTags("");
         setPage(1);
-    }, [sort, category, tags]);
+    };
 
     return (
         <div className="space-y-6">
-
             <CoursesFilters
-                search={search} setSearch={setSearch}
-                sort={sort} setSort={setSort}
-                category={category} setCategory={setCategory}
-                tags={tags} setTags={setTags}
+                search={search}
+                setSearch={setSearch}
+                sort={sort}
+                setSort={(val) => { setSort(val); setPage(1); }}
+                category={category}
+                setCategory={(val) => { setCategory(val); setPage(1); }}
+                tags={tags}
+                setTags={(val) => { setTags(val); setPage(1); }}
                 onSearchSubmit={onSearchSubmit}
+                onResetFilters={handleResetFilters}
             />
 
-            {/* states */}
+            {/* Loading state */}
             {loading && (
-                <div className="flex justify-center py-10">
-                    <span className="loading loading-spinner loading-lg"></span>
+                <div className="flex justify-center items-center py-16">
+                    <span className="loading loading-spinner loading-lg text-primary"></span>
                 </div>
             )}
 
+            {/* Error state */}
             {error && (
-                <div className="alert alert-error">
+                <div className="alert alert-error shadow-md">
                     <span>{error}</span>
                 </div>
             )}
 
+            {/* Empty state */}
             {!loading && !error && courses.length === 0 && (
-                <div className="rounded-xl border border-primary/20 bg-base-200 p-6 text-center">
-                    <h3 className="text-lg font-semibold text-primary">
-                        No courses found
-                    </h3>
-                    <p className="mt-1 text-base-content/70">
-                        Try adjusting your search or filters.
+                <div className="rounded-2xl border border-base-300 bg-base-100 p-12 text-center shadow-sm">
+                    <h3 className="text-xl font-bold text-base-content">No courses found</h3>
+                    <p className="mt-2 text-sm text-base-content/70">
+                        Try adjusting your search terms or clearing your filters.
                     </p>
+                    <button
+                        onClick={handleResetFilters}
+                        className="btn btn-outline btn-sm mt-4"
+                    >
+                        Clear Filters
+                    </button>
                 </div>
             )}
 
-
+            {/* Course Grid & Admin Actions */}
             {!loading && !error && courses.length > 0 && (
                 <>
                     <CoursesGrid courses={courses} />
+
                     {user?.role === "admin" && (
-                        <div className="flex justify-center pt-4">
-                            <Link
-                                to="/admin/courses"
-                                className="btn btn-primary btn-wide"
-                            >
+                        <div className="flex justify-center pt-6">
+                            <Link to="/admin/courses" className="btn btn-primary btn-wide shadow-md">
                                 Manage Courses
                             </Link>
                         </div>
@@ -113,11 +123,14 @@ export default function CoursesSection() {
                 </>
             )}
 
-            <CoursesPagination
-                page={page}
-                totalPages={totalPages}
-                setPage={setPage}
-            />
+            {/* Pagination Controls */}
+            {!loading && !error && (
+                <CoursesPagination
+                    page={page}
+                    totalPages={totalPages}
+                    setPage={setPage}
+                />
+            )}
         </div>
     );
 }

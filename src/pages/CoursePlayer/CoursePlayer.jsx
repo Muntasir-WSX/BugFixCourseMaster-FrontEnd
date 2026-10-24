@@ -4,43 +4,28 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchCourseById } from "../../store/slices/coursesSlice";
 import { completeLessonAsync, fetchMyEnrollments } from "../../store/slices/enrollmentSlice";
 import { getMyEnrollments } from "../../services/enrollment.api";
-import { submitAssignment } from "../../services/assignment.api";
-import { submitQuiz as submitQuizAPI } from "../../services/quiz.api";
+import { submitAssignment, getMyAssignments } from "../../services/assignment.api";
+import { submitQuiz as submitQuizAPI, getMyQuizSubmissions } from "../../services/quiz.api";
 
-// Helper function to convert YouTube URLs to embed format
 const convertToEmbedUrl = (url) => {
     if (!url) return "";
+    if (url.includes("youtube.com/embed/")) return url;
 
-    // If already an embed URL, return as is
-    if (url.includes("youtube.com/embed/")) {
-        return url;
-    }
-
-    // Handle youtu.be short URLs
     if (url.includes("youtu.be/")) {
         const videoId = url.split("youtu.be/")[1]?.split("?")[0]?.split("&")[0];
-        if (videoId) {
-            return `https://www.youtube.com/embed/${videoId}`;
-        }
+        if (videoId) return `https://www.youtube.com/embed/${videoId}`;
     }
 
-    // Handle regular YouTube URLs (watch?v=...)
     if (url.includes("watch?v=")) {
         const videoId = url.split("watch?v=")[1]?.split("&")[0];
-        if (videoId) {
-            return `https://www.youtube.com/embed/${videoId}`;
-        }
+        if (videoId) return `https://www.youtube.com/embed/${videoId}`;
     }
 
-    // Handle YouTube URLs with /v/ format
     if (url.includes("youtube.com/v/")) {
         const videoId = url.split("youtube.com/v/")[1]?.split("?")[0]?.split("&")[0];
-        if (videoId) {
-            return `https://www.youtube.com/embed/${videoId}`;
-        }
+        if (videoId) return `https://www.youtube.com/embed/${videoId}`;
     }
 
-    // If it's already an embed URL or doesn't match patterns, return as is
     return url;
 };
 
@@ -60,7 +45,7 @@ export default function CoursePlayer() {
         const fetchEnrollment = async () => {
             try {
                 const res = await getMyEnrollments();
-                const userEnroll = res.data.find((e) => e.course?._id === id);
+                const userEnroll = res.data?.find((e) => e.course?._id === id);
                 setEnrollment(userEnroll);
             } catch (err) {
                 console.error("Failed to load enrollment:", err);
@@ -72,8 +57,7 @@ export default function CoursePlayer() {
     const handleMarkComplete = async () => {
         if (!enrollment) return;
 
-        const currentLesson =
-            currentCourse?.syllabus[selectedModule]?.lessons[selectedLesson];
+        const currentLesson = currentCourse?.syllabus?.[selectedModule]?.lessons?.[selectedLesson];
         if (!currentLesson) return;
 
         try {
@@ -86,13 +70,11 @@ export default function CoursePlayer() {
 
             if (result) setEnrollment(result);
             else {
-                // fallback: re-fetch
                 const res = await getMyEnrollments();
-                const userEnroll = res.data.find((e) => e.course?._id === id);
+                const userEnroll = res.data?.find((e) => e.course?._id === id);
                 setEnrollment(userEnroll);
             }
 
-            // refresh global enrollments for dashboard
             dispatch(fetchMyEnrollments());
         } catch (err) {
             console.error("Failed to mark lesson complete:", err);
@@ -113,6 +95,14 @@ export default function CoursePlayer() {
 
     const module = currentCourse.syllabus?.[selectedModule];
     const lesson = module?.lessons?.[selectedLesson];
+
+    // Helper check for completed lesson
+    const isLessonCompleted = (lessonId) => {
+        if (!enrollment?.progress?.completedLessons) return false;
+        return enrollment.progress.completedLessons.some(
+            (item) => (typeof item === 'object' ? item._id : item) === String(lessonId)
+        );
+    };
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
@@ -139,9 +129,9 @@ export default function CoursePlayer() {
                         <div className="card bg-base-100 shadow">
                             <div className="card-body p-3 sm:p-6">
                                 <h3 className="card-title text-base sm:text-lg md:text-xl break-words">{lesson.title}</h3>
-                                <div className="bg-base-300 rounded overflow-hidden mt-2 sm:mt-4">
+                                <div className="aspect-video w-full bg-base-300 rounded overflow-hidden mt-2 sm:mt-4">
                                     <iframe
-                                        style={{ height: '700px', width: '300px' }}
+                                        className="w-full h-full"
                                         src={convertToEmbedUrl(lesson.videoUrl)}
                                         title={lesson.title}
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -152,16 +142,15 @@ export default function CoursePlayer() {
 
                                 <button
                                     onClick={handleMarkComplete}
-                                    disabled={!!enrollment?.progress?.completedLessons?.includes(lesson)}
-                                    className={`btn btn-sm sm:btn-md ${enrollment?.progress?.completedLessons?.includes(lesson) ? "btn-disabled" : "btn-success"} mt-3 sm:mt-4 w-full sm:w-auto`}
+                                    disabled={isLessonCompleted(lesson._id)}
+                                    className={`btn btn-sm sm:btn-md ${isLessonCompleted(lesson._id) ? "btn-disabled" : "btn-success"} mt-3 sm:mt-4 w-full sm:w-auto`}
                                 >
-                                    {enrollment?.progress?.completedLessons?.includes(lesson) ? "Completed ✓" : "✓ Mark as Complete"}
+                                    {isLessonCompleted(lesson._id) ? "Completed ✓" : "✓ Mark as Complete"}
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Live Class Section */}
                     {lesson?.liveClassLink && (
                         <div className="card bg-info/10 border-2 border-info shadow">
                             <div className="card-body p-3 sm:p-6">
@@ -234,11 +223,7 @@ export default function CoursePlayer() {
                                                 const hasAssignment = !!les.assignmentPrompt;
                                                 const hasQuiz = les.quiz && les.quiz.length > 0;
                                                 const hasLiveClass = !!les.liveClassLink;
-                                                const isCompleted = enrollment?.progress?.completedLessons?.includes(les._id);
-                                                
-                                                // Check if live class is upcoming
-                                                const isUpcoming = hasLiveClass && les.liveClassDate && new Date(les.liveClassDate) > new Date();
-                                                const liveClassDate = hasLiveClass && les.liveClassDate ? new Date(les.liveClassDate) : null;
+                                                const completed = isLessonCompleted(les._id);
 
                                                 return (
                                                     <button
@@ -250,7 +235,7 @@ export default function CoursePlayer() {
                                                             }`}
                                                     >
                                                         <span className="flex items-center gap-1 flex-1 min-w-0">
-                                                            {isCompleted && <span className="text-success">✓</span>}
+                                                            {completed && <span className="text-success">✓</span>}
                                                             <span className="truncate">{les.title}</span>
                                                         </span>
                                                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -288,11 +273,9 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
     const [previousSubmission, setPreviousSubmission] = useState(null);
     const [loadingPrevious, setLoadingPrevious] = useState(true);
 
-    // Check for previous submission on mount
     useEffect(() => {
         const checkPreviousSubmission = async () => {
             try {
-                const { getMyAssignments } = await import("../../services/assignment.api");
                 const response = await getMyAssignments(courseId);
                 const submissions = response.data || [];
                 const previous = submissions.find(
@@ -317,10 +300,9 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
         setError(null);
 
         try {
-            // Detect if answer is a link
             const isLink = answer.trim().startsWith("http://") || answer.trim().startsWith("https://");
             const answerType = isLink ? "link" : "text";
-            
+
             await submitAssignment({
                 courseId,
                 lessonId,
@@ -329,9 +311,7 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
             });
             setSubmitted(true);
 
-            // Fetch the updated submission
             try {
-                const { getMyAssignments } = await import("../../services/assignment.api");
                 const response = await getMyAssignments(courseId);
                 const submissions = response.data || [];
                 const updated = submissions.find(
@@ -344,18 +324,15 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
                 console.error("Failed to fetch updated submission:", fetchErr);
             }
 
-            // Mark lesson as complete after assignment submission
             if (enrollment && onComplete) {
                 try {
                     await onComplete();
-                    // Refresh enrollments for dashboard
                     dispatch(fetchMyEnrollments());
                 } catch (err) {
                     console.error("Failed to mark lesson complete:", err);
                 }
             }
 
-            // Clear the answer field
             setAnswer("");
         } catch (err) {
             console.error("Failed to submit:", err);
@@ -401,7 +378,6 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
                     </div>
                 )}
 
-                {/* Show previous submission if exists */}
                 {previousSubmission && (
                     <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-base-200 rounded-lg border border-base-300">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
@@ -464,7 +440,6 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
                     </div>
                 )}
 
-                {/* Show form only if not submitted */}
                 {!previousSubmission && (
                     <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3 mt-3 sm:mt-4">
                         <textarea
@@ -513,21 +488,17 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
     const [previousSubmission, setPreviousSubmission] = useState(null);
     const [loadingPrevious, setLoadingPrevious] = useState(true);
 
-    // Check for previous submission on mount
     useEffect(() => {
         const checkPreviousSubmission = async () => {
             try {
-                const { getMyQuizSubmissions } = await import("../../services/quiz.api");
                 const response = await getMyQuizSubmissions(courseId);
                 const submissions = response.data || [];
 
-                // Find submission for this specific lesson (get the most recent one)
                 const lessonSubmissions = submissions.filter(
                     (sub) => String(sub.lessonId) === String(lessonId)
                 );
 
                 if (lessonSubmissions.length > 0) {
-                    // Get the most recent submission
                     const previous = lessonSubmissions.sort((a, b) => {
                         const dateA = new Date(a.createdAt || a.submittedAt || 0);
                         const dateB = new Date(b.createdAt || b.submittedAt || 0);
@@ -535,10 +506,8 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
                     })[0];
 
                     setPreviousSubmission(previous);
-                    // Don't set submitted to true - allow retaking
-                    // setSubmitted(true);
                     setScore(previous.percent || previous.score || 0);
-                    // Restore previous answers if available
+
                     if (previous.answers && Array.isArray(previous.answers)) {
                         const answersObj = {};
                         previous.answers.forEach((answer, idx) => {
@@ -560,7 +529,6 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
     }, [courseId, lessonId]);
 
     const handleAnswer = (questionIdx, optionIdx) => {
-        // Always allow answering - if there's a previous submission, reset submitted state for retake
         if (submitted && previousSubmission) {
             setSubmitted(false);
         }
@@ -568,21 +536,15 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
     };
 
     const handleSubmit = async () => {
-        // Allow resubmission - students can retake quizzes
-        // Just show a warning if they've already submitted
         if (submitted && previousSubmission) {
             const confirmRetake = window.confirm(
                 "You have already submitted this quiz. Do you want to submit again? Your new score will replace the previous one."
             );
-            if (!confirmRetake) {
-                return;
-            }
-            // Reset submission state to allow new submission
+            if (!confirmRetake) return;
             setSubmitted(false);
             setPreviousSubmission(null);
         }
 
-        // Validate all questions are answered
         if (Object.keys(answers).length !== quiz.length) {
             setError("Please answer all questions before submitting.");
             return;
@@ -592,7 +554,6 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
         setError(null);
 
         try {
-            // Convert answers object to array format [selectedIndex, selectedIndex, ...]
             const answersArray = quiz.map((_, idx) => answers[idx] ?? -1);
 
             const response = await submitQuizAPI({
@@ -604,7 +565,7 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
 
             setScore(result.percent);
             setSubmitted(true);
-            // Store the submission result to show marks immediately
+            
             const submissionResult = {
                 _id: result._id,
                 score: result.score,
@@ -616,15 +577,10 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
             };
             setPreviousSubmission(submissionResult);
 
-            // Mark lesson as complete after quiz submission
             if (enrollment && onComplete) {
                 try {
                     await onComplete();
-                    // Refresh enrollments for dashboard
                     dispatch(fetchMyEnrollments());
-
-                    // Show success message
-                    console.log(`Quiz submitted successfully! Score: ${result.percent}% (${result.score}/${result.total})`);
                 } catch (err) {
                     console.error("Failed to mark lesson complete:", err);
                 }
@@ -634,9 +590,7 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
             const errorMsg = err.response?.data?.message || "Failed to submit quiz. Please try again.";
             setError(errorMsg);
 
-            // If error suggests duplicate, check for previous submission
             if (errorMsg.includes("already") || errorMsg.includes("duplicate")) {
-                const { getMyQuizSubmissions } = await import("../../services/quiz.api");
                 try {
                     const response = await getMyQuizSubmissions(courseId);
                     const submissions = response.data || [];
@@ -768,7 +722,7 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
                                         >
                                             <input
                                                 type="radio"
-                                                name="quiz-option"
+                                                name={`quiz-option-${qIdx}`}
                                                 checked={answers[qIdx] === oIdx}
                                                 onChange={() => {
                                                     if (!loading) {
@@ -822,7 +776,6 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
                     )}
                 </button>
 
-                {/* Show quiz results immediately after submission */}
                 {submitted && previousSubmission && (
                     <div className="mt-4 sm:mt-6 space-y-3 sm:space-y-4">
                         <div className={`alert ${score >= 70 ? 'alert-success' : score >= 50 ? 'alert-warning' : 'alert-error'} shadow-lg`}>
@@ -850,13 +803,9 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
                                         score >= 50 ? "👍 Good effort! Keep practicing to improve!" :
                                             "📚 Keep studying! Review the material and try again."}
                                 </p>
-                                <p className="text-xs mt-2 opacity-70">
-                                    ✅ Your quiz has been saved. View detailed marks in the Student Dashboard.
-                                </p>
                             </div>
                         </div>
 
-                        {/* Show correct/incorrect answers breakdown */}
                         <div className="card bg-base-200">
                             <div className="card-body p-3 sm:p-4">
                                 <h5 className="font-semibold text-sm sm:text-base mb-2 sm:mb-3">Answer Review</h5>

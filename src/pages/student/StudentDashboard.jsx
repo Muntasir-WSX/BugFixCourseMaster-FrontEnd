@@ -54,39 +54,28 @@ export default function StudentDashboard() {
 
     // Fetch stats for a specific course (optimized)
     const loadCourseStats = async (courseId, forceRefresh = false) => {
-        // Skip if already loaded and not forcing refresh
         if (courseStats[courseId] && !forceRefresh) return;
-
-        // Prevent duplicate requests
         if (loadingStats[courseId]) return;
 
         setLoadingStats(prev => ({ ...prev, [courseId]: true }));
 
         try {
-            // Check if course data is already available
             let courseData = courseStats[courseId]?.courseData;
 
-            // Only fetch course data if not available
             if (!courseData || forceRefresh) {
                 try {
-                    // Try to get from current course if it matches
                     if (currentCourse?._id === courseId) {
                         courseData = currentCourse;
                     } else {
-                        // Fetch directly via API
                         const res = await getCourseById(courseId);
                         courseData = res.data;
                     }
                 } catch (err) {
                     console.error("Failed to fetch course:", err);
-                    // Use existing courseData if available, otherwise null
-                    if (!courseData) {
-                        courseData = null;
-                    }
+                    if (!courseData) courseData = null;
                 }
             }
 
-            // Fetch quiz and assignment stats in parallel
             const [quizRes, assignmentRes] = await Promise.all([
                 getQuizStats(courseId).catch(err => {
                     console.error("Quiz stats error:", err);
@@ -98,7 +87,6 @@ export default function StudentDashboard() {
                 }),
             ]);
 
-            // Create lesson map for fast lookups
             const lessonMap = courseData ? createLessonMap(courseData) : {};
 
             setCourseStats(prev => ({
@@ -126,15 +114,12 @@ export default function StudentDashboard() {
         }
     };
 
-    // Refresh stats for a course
     const handleRefreshStats = (courseId) => {
-        // Clear cache for this course
         Object.keys(lessonTitleCache.current).forEach(key => {
             if (key.startsWith(`${courseId}_`)) {
                 delete lessonTitleCache.current[key];
             }
         });
-        // Clear stats and reload
         setCourseStats(prev => {
             const newStats = { ...prev };
             delete newStats[courseId];
@@ -142,9 +127,6 @@ export default function StudentDashboard() {
         });
         loadCourseStats(courseId, true);
     };
-
-    // Note: Stats will be refreshed when user expands the course details
-    // The data is fetched fresh from the database each time
 
     if (loading) {
         return (
@@ -189,6 +171,11 @@ export default function StudentDashboard() {
                         const stats = courseStats[courseId];
                         const isLoading = loadingStats[courseId];
 
+                        // Safe calculation for total lessons and percentage (Fixed Bug)
+                        const completedCount = enrollment.progress?.completedLessons?.length || 0;
+                        const totalLessons = stats?.courseData?.syllabus?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || 0;
+                        const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : (enrollment.progress?.percent || 0);
+
                         return (
                             <div
                                 key={enrollment._id}
@@ -226,45 +213,25 @@ export default function StudentDashboard() {
                                         <div className="flex justify-between items-center mb-3">
                                             <div>
                                                 <p className="text-sm font-semibold text-base-content/80">Course Progress</p>
-                                                {(() => {
-                                                    const completedCount = enrollment.progress?.completedLessons?.length || 0;
-                                                    const courseData = stats?.courseData;
-                                                    let totalLessons = 0;
-
-                                                    // Calculate total lessons (cached if available)
-                                                    if (courseData?.syllabus) {
-                                                        courseData.syllabus.forEach(module => {
-                                                            if (module.lessons) {
-                                                                totalLessons += module.lessons.length;
-                                                            }
-                                                        });
-                                                    }
-
-                                                    if (totalLessons > 0) {
-                                                        return (
-                                                            <p className="text-xs text-base-content/70 mt-1">
-                                                                {completedCount} of {totalLessons} lessons completed
-                                                            </p>
-                                                        );
-                                                    } else if (completedCount > 0) {
-                                                        return (
-                                                            <p className="text-xs text-base-content/70 mt-1">
-                                                                {completedCount} lesson{completedCount !== 1 ? 's' : ''} completed
-                                                            </p>
-                                                        );
-                                                    }
-                                                    return null;
-                                                })()}
+                                                {totalLessons > 0 ? (
+                                                    <p className="text-xs text-base-content/70 mt-1">
+                                                        {completedCount} of {totalLessons} lessons completed
+                                                    </p>
+                                                ) : completedCount > 0 ? (
+                                                    <p className="text-xs text-base-content/70 mt-1">
+                                                        {completedCount} lesson{completedCount !== 1 ? 's' : ''} completed
+                                                    </p>
+                                                ) : null}
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-2xl sm:text-3xl font-bold text-primary">
-                                                    {Math.round((enrollment.progress?.completedLessons?.length / (stats?.courseData?.syllabus?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0))) * 100)}%
+                                                    {progressPercent}%
                                                 </p>
                                             </div>
                                         </div>
                                         <progress
                                             className="progress progress-primary w-full h-4"
-                                            value={enrollment.progress?.percent || 0}
+                                            value={progressPercent}
                                             max="100"
                                         ></progress>
                                         {isExpanded && stats && (
@@ -313,7 +280,6 @@ export default function StudentDashboard() {
 
                                                     {/* Statistics Cards */}
                                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                                                        {/* Quiz Average */}
                                                         <div className="card bg-primary text-primary-content">
                                                             <div className="card-body p-3 sm:p-4">
                                                                 <h3 className="text-xs sm:text-sm font-semibold opacity-80">Quiz Average</h3>
@@ -326,7 +292,6 @@ export default function StudentDashboard() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Assignment Average */}
                                                         <div className="card bg-secondary text-secondary-content">
                                                             <div className="card-body p-3 sm:p-4">
                                                                 <h3 className="text-xs sm:text-sm font-semibold opacity-80">Assignment Average</h3>
@@ -339,7 +304,6 @@ export default function StudentDashboard() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Overall Grade */}
                                                         <div className="card bg-accent text-accent-content">
                                                             <div className="card-body p-3 sm:p-4">
                                                                 <h3 className="text-xs sm:text-sm font-semibold opacity-80">Overall Grade</h3>
@@ -351,7 +315,6 @@ export default function StudentDashboard() {
                                                                         const assignCount = stats.assignmentStats?.reviewedCount || 0;
                                                                         const total = quizCount + assignCount;
                                                                         if (total === 0) return "N/A";
-                                                                        // Calculate weighted average more efficiently
                                                                         const overall = Math.round((quizAvg * quizCount + assignAvg * assignCount) / total);
                                                                         return `${overall}%`;
                                                                     })()}
@@ -374,7 +337,6 @@ export default function StudentDashboard() {
                                                                 <div className="space-y-2">
                                                                     {stats.quizStats.submissions.map((quiz, idx) => {
                                                                         const lessonTitle = getLessonTitle(courseId, quiz.lessonId);
-                                                                        // Format date once
                                                                         const submittedDate = quiz.submittedAt ? new Date(quiz.submittedAt) : null;
                                                                         const dateStr = submittedDate ? submittedDate.toLocaleDateString() : 'N/A';
                                                                         const timeStr = submittedDate ? submittedDate.toLocaleTimeString() : '';
@@ -420,7 +382,6 @@ export default function StudentDashboard() {
                                                                 <div className="space-y-3">
                                                                     {stats.assignmentStats.submissions.map((assignment, idx) => {
                                                                         const lessonTitle = getLessonTitle(courseId, assignment.lessonId);
-                                                                        // Format dates once
                                                                         const submittedDate = assignment.submittedAt ? new Date(assignment.submittedAt) : null;
                                                                         const reviewedDate = assignment.reviewedAt ? new Date(assignment.reviewedAt) : null;
 

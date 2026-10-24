@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchEnrollments } from "../../../store/slices/adminSlice";
 import { fetchCourses } from "../../../store/slices/coursesSlice";
 
 export default function Enrollments() {
     const dispatch = useDispatch();
-    const { enrollments, loading } = useSelector((state) => state.admin);
-    const { courses } = useSelector((state) => state.courses);
+    const { enrollments = [], loading } = useSelector((state) => state.admin);
+    const { courses = [] } = useSelector((state) => state.courses);
+
     const [selectedCourse, setSelectedCourse] = useState("");
     const [searchStudent, setSearchStudent] = useState("");
 
@@ -15,12 +16,23 @@ export default function Enrollments() {
         dispatch(fetchCourses({ page: 1, limit: 100 }));
     }, [dispatch]);
 
-    // Filter enrollments by selected course and student name
-    const filteredEnrollments = enrollments.filter((enr) => {
-        const matchCourse = !selectedCourse || enr.course?._id === selectedCourse;
-        const matchStudent = !searchStudent || enr.student?.name?.toLowerCase().includes(searchStudent.toLowerCase());
-        return matchCourse && matchStudent;
-    });
+    // Format date safely
+    const formatDate = (dateString) => {
+        if (!dateString) return "N/A";
+        const d = new Date(dateString);
+        return isNaN(d.getTime()) ? "N/A" : d.toLocaleDateString();
+    };
+
+    // Memoize filtered enrollments to prevent unnecessary re-filtering on renders
+    const filteredEnrollments = useMemo(() => {
+        const query = searchStudent.trim().toLowerCase();
+        return enrollments.filter((enr) => {
+            const matchCourse = !selectedCourse || enr.course?._id === selectedCourse;
+            const studentName = enr.student?.name?.toLowerCase() || "";
+            const matchStudent = !query || studentName.includes(query);
+            return matchCourse && matchStudent;
+        });
+    }, [enrollments, selectedCourse, searchStudent]);
 
     return (
         <div className="space-y-4 sm:space-y-6">
@@ -66,7 +78,7 @@ export default function Enrollments() {
 
             {/* Results */}
             {loading ? (
-                <div className="flex justify-center">
+                <div className="flex justify-center py-8">
                     <span className="loading loading-spinner loading-lg"></span>
                 </div>
             ) : filteredEnrollments.length === 0 ? (
@@ -90,10 +102,10 @@ export default function Enrollments() {
                             <tbody>
                                 {filteredEnrollments.map((enr) => (
                                     <tr key={enr._id} className="hover:bg-base-100">
-                                        <td className="font-semibold">{enr.student?.name}</td>
-                                        <td>{enr.student?.email}</td>
-                                        <td>{enr.course?.title}</td>
-                                        <td>{new Date(enr.createdAt).toLocaleDateString()}</td>
+                                        <td className="font-semibold">{enr.student?.name || "N/A"}</td>
+                                        <td>{enr.student?.email || "N/A"}</td>
+                                        <td>{enr.course?.title || "N/A"}</td>
+                                        <td>{formatDate(enr.createdAt)}</td>
                                         <td>
                                             <span className="badge badge-success">Active</span>
                                         </td>
@@ -107,14 +119,14 @@ export default function Enrollments() {
                     <div className="md:hidden space-y-3">
                         {filteredEnrollments.map((enr) => (
                             <div key={enr._id} className="card bg-base-100 shadow-sm border border-base-200">
-                                <div className="card-body">
+                                <div className="card-body p-4">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <div className="font-semibold text-lg">{enr.student?.name}</div>
-                                            <div className="text-sm text-base-content/70">{enr.student?.email}</div>
-                                            <div className="text-sm text-base-content/70 mt-2">{enr.course?.title}</div>
+                                            <div className="font-semibold text-lg">{enr.student?.name || "N/A"}</div>
+                                            <div className="text-sm text-base-content/70">{enr.student?.email || "N/A"}</div>
+                                            <div className="text-sm text-base-content/70 mt-2">{enr.course?.title || "N/A"}</div>
                                             <div className="text-xs text-base-content/60 mt-2">
-                                                Enrolled: {new Date(enr.createdAt).toLocaleDateString()}
+                                                Enrolled: {formatDate(enr.createdAt)}
                                             </div>
                                         </div>
                                         <div>

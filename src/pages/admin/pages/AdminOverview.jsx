@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { fetchEnrollments, fetchAssignments } from "../../../store/slices/adminSlice";
 import { getAnalytics } from "../../../services/admin.api";
 import {
@@ -16,7 +16,6 @@ import {
     Legend,
     ResponsiveContainer,
 } from "recharts";
-import { Link } from "react-router-dom";
 import {
     Plus,
     BookOpen,
@@ -24,7 +23,6 @@ import {
     Users,
     BarChart3,
     Video,
-    Settings,
     TrendingUp,
 } from "lucide-react";
 
@@ -116,9 +114,8 @@ export default function AdminOverview() {
         },
     ];
 
-    // Prepare chart data
     const enrollmentChartData = analytics?.chartData || [];
-    
+
     const assignmentStatusData = [
         {
             name: "Reviewed",
@@ -132,7 +129,6 @@ export default function AdminOverview() {
         },
     ];
 
-    // Enrollment by course (top 5)
     const courseEnrollmentData = analytics?.topCourses?.slice(0, 5).map((course) => ({
         name: course.courseTitle?.substring(0, 15) || "Unknown",
         enrollments: course.count,
@@ -331,7 +327,7 @@ export default function AdminOverview() {
                 </div>
             )}
 
-            {/* Recent Enrollments: table on md+, cards on small screens */}
+            {/* Recent Enrollments */}
             <div>
                 <div className="hidden md:block">
                     <div className="card bg-base-100 border border-base-300 shadow">

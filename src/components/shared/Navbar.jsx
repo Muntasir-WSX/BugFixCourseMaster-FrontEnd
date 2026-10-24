@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Logo from "./Logo";
 import ThemeToggle from "./ThemeToggle";
 import { getToken, clearToken } from "../../utils/auth";
@@ -10,40 +10,57 @@ export default function Navbar() {
     const token = getToken();
     const [me, setMe] = useState(null);
 
-    const navLinkClass = ({ isActive, to }) =>
-        (isActive || window.location.pathname.startsWith("/"))
+    // Standardized NavLink active state generator
+    const navLinkClass = ({ isActive }) =>
+        isActive
             ? "text-primary font-semibold"
-            : "text-base-content/80 hover:text-primary";
+            : "text-base-content/80 hover:text-primary transition-colors";
 
     const handleLogout = () => {
         clearToken();
         setMe(null);
-        navigate("/");
-        window.location.reload();
+        navigate("/", { replace: true });
     };
 
     useEffect(() => {
+        let isMounted = true;
         const loadMe = async () => {
-            if (!token) return setMe(null);
+            if (!token) {
+                if (isMounted) setMe(null);
+                return;
+            }
             try {
                 const res = await getMe();
-                setMe(res.data);
+                if (isMounted) setMe(res.data);
             } catch {
                 clearToken();
-                setMe(null);
+                if (isMounted) setMe(null);
             }
         };
         loadMe();
+
+        return () => {
+            isMounted = false;
+        };
     }, [token]);
 
-    const initials = me?.name
-        ? me.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
-        : "U";
+    const initials = useMemo(() => {
+        if (!me?.name) return "U";
+        return me.name
+            .trim()
+            .split(" ")
+            .map((w) => w[0])
+            .filter(Boolean)
+            .slice(0, 2)
+            .join("")
+            .toUpperCase();
+    }, [me?.name]);
+
+    const isDevBypass = localStorage.getItem("dev_bypass") === "true";
 
     return (
         <header className="sticky top-0 z-50 bg-base-100/90 backdrop-blur border-b border-base-300">
             <div className="navbar max-w-6xl mx-auto px-2">
-
                 {/* LEFT: Logo */}
                 <div className="navbar-start">
                     <Logo />
@@ -52,11 +69,18 @@ export default function Navbar() {
                 {/* CENTER: Desktop menu */}
                 <div className="navbar-center hidden md:flex">
                     <ul className="menu menu-horizontal gap-1">
-                        <li><NavLink className={navLinkClass} to="/">Home</NavLink></li>
-                        <li><NavLink className={navLinkClass} to="/courses">Courses</NavLink></li>
+                        <li>
+                            <NavLink className={navLinkClass} to="/">
+                                Home
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink className={navLinkClass} to="/courses">
+                                Courses
+                            </NavLink>
+                        </li>
 
-                        {/* ✅ Dashboard when logged in OR when dev_bypass is active */}
-                        {(token && me) ? (
+                        {token && me ? (
                             <li>
                                 <NavLink
                                     className={navLinkClass}
@@ -65,10 +89,18 @@ export default function Navbar() {
                                     Dashboard
                                 </NavLink>
                             </li>
-                        ) : (localStorage.getItem("dev_bypass") === "true") ? (
+                        ) : isDevBypass ? (
                             <>
-                                <li><NavLink className={navLinkClass} to="/student">Student Portal</NavLink></li>
-                                <li><NavLink className={navLinkClass} to="/admin">Admin Portal</NavLink></li>
+                                <li>
+                                    <NavLink className={navLinkClass} to="/student">
+                                        Student Portal
+                                    </NavLink>
+                                </li>
+                                <li>
+                                    <NavLink className={navLinkClass} to="/admin">
+                                        Admin Portal
+                                    </NavLink>
+                                </li>
                             </>
                         ) : null}
                     </ul>
@@ -79,11 +111,15 @@ export default function Navbar() {
                     {/* Theme Toggle */}
                     <ThemeToggle />
 
-                    {/* Desktop buttons if NOT logged in */}
+                    {/* Desktop actions if NOT logged in */}
                     {!token && (
                         <div className="hidden md:flex gap-2">
-                            <Link to="/login" className="btn btn-sm btn-ghost">Login</Link>
-                            <Link to="/register" className="btn btn-sm btn-primary">Enroll Now</Link>
+                            <Link to="/login" className="btn btn-sm btn-ghost">
+                                Login
+                            </Link>
+                            <Link to="/register" className="btn btn-sm btn-primary">
+                                Enroll Now
+                            </Link>
                         </div>
                     )}
 
@@ -98,25 +134,26 @@ export default function Navbar() {
 
                             <ul
                                 tabIndex={0}
-                                className="dropdown-content mt-3 p-3 shadow bg-base-100 rounded-box w-60 border border-base-300"
+                                className="dropdown-content mt-3 p-3 shadow bg-base-100 rounded-box w-60 border border-base-300 space-y-1"
                             >
                                 <div className="px-2 pb-2">
-                                    <p className="font-semibold">{me.name}</p>
-                                    <p className="text-sm text-base-content/70">{me.email}</p>
-                                    <p className="text-xs badge badge-outline mt-2">{me.role}</p>
+                                    <p className="font-semibold truncate">{me.name}</p>
+                                    <p className="text-sm text-base-content/70 truncate">{me.email}</p>
+                                    <span className="badge badge-outline text-xs mt-2 capitalize">{me.role}</span>
                                 </div>
 
                                 <div className="my-2 border-t border-base-300" />
 
-                                {/* ✅ Dashboard inside dropdown only when logged in */}
                                 <li>
                                     <Link to={me.role === "admin" ? "/admin" : "/student"}>
                                         Dashboard
                                     </Link>
                                 </li>
-                                <li><Link to="/profile">Profile</Link></li>
                                 <li>
-                                    <button onClick={handleLogout} className="text-red-500">
+                                    <Link to="/profile">Profile</Link>
+                                </li>
+                                <li>
+                                    <button onClick={handleLogout} className="text-error w-full text-left">
                                         Logout
                                     </button>
                                 </li>
@@ -124,28 +161,40 @@ export default function Navbar() {
                         </div>
                     )}
 
-                    {/* Mobile hamburger */}
+                    {/* Mobile menu dropdown */}
                     <div className="dropdown dropdown-end md:hidden">
-                        <label tabIndex={0} className="btn btn-ghost btn-circle">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                                    d="M4 6h16M4 12h16M4 18h16" />
+                        <label tabIndex={0} className="btn btn-ghost btn-circle" aria-label="Toggle Navigation">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                    d="M4 6h16M4 12h16M4 18h16"
+                                />
                             </svg>
                         </label>
 
                         <ul
                             tabIndex={0}
-                            className="
-                menu menu-sm dropdown-content mt-3 p-3 shadow
-                bg-base-100 rounded-box w-56 border border-base-300
-                items-center text-center max-h-32 overflow-hidden
-              "
+                            className="menu menu-sm dropdown-content mt-3 p-3 shadow bg-base-100 rounded-box w-60 border border-base-300 max-h-[85vh] overflow-y-auto z-50"
                         >
-                            <li><NavLink className={navLinkClass} to="/">Home</NavLink></li>
-                            <li><NavLink className={navLinkClass} to="/courses">Courses</NavLink></li>
+                            <li>
+                                <NavLink className={navLinkClass} to="/">
+                                    Home
+                                </NavLink>
+                            </li>
+                            <li>
+                                <NavLink className={navLinkClass} to="/courses">
+                                    Courses
+                                </NavLink>
+                            </li>
 
-                            {/* ✅ Dashboard only when logged in */}
                             {token && me && (
                                 <li>
                                     <NavLink
@@ -160,36 +209,31 @@ export default function Navbar() {
                             <div className="my-2 w-full border-t border-base-300" />
 
                             {!token ? (
-                                <>
-                                    <li className="w-full">
-                                        <Link to="/login" className="btn btn-ghost btn-sm w-full">Login</Link>
-                                    </li>
-                                    <li className="w-full">
-                                        <Link to="/register" className="btn btn-primary btn-sm w-full">Enroll Now</Link>
-                                    </li>
-                                </>
+                                <div className="flex flex-col gap-2 pt-1">
+                                    <Link to="/login" className="btn btn-ghost btn-sm w-full">
+                                        Login
+                                    </Link>
+                                    <Link to="/register" className="btn btn-primary btn-sm w-full">
+                                        Enroll Now
+                                    </Link>
+                                </div>
                             ) : (
                                 <>
-                                    <div className="flex flex-col items-center gap-2 py-2">
-                                        <div className="w-12 h-12 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold">
+                                    <div className="flex flex-col items-center gap-1 py-2 px-1 text-center">
+                                        <div className="w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold mb-1">
                                             {initials}
                                         </div>
-                                        <p className="font-semibold">{me?.name}</p>
-                                        <p className="text-xs text-base-content/70">{me?.email}</p>
+                                        <p className="font-semibold text-sm truncate max-w-full">{me?.name}</p>
+                                        <p className="text-xs text-base-content/70 truncate max-w-full">{me?.email}</p>
                                     </div>
 
                                     <div className="my-2 w-full border-t border-base-300" />
 
-                                    {/* ✅ Dashboard only when logged in */}
-                                    <li className="w-full">
-                                        <Link to={me?.role === "admin" ? "/admin" : "/student"} className="w-full">
-                                            Dashboard
-                                        </Link>
+                                    <li>
+                                        <Link to="/profile">Profile</Link>
                                     </li>
-
-                                    <li className="w-full"><Link to="/profile">Profile</Link></li>
-                                    <li className="w-full">
-                                        <button onClick={handleLogout} className="btn btn-ghost btn-sm w-full text-red-500">
+                                    <li>
+                                        <button onClick={handleLogout} className="text-error w-full text-left">
                                             Logout
                                         </button>
                                     </li>
@@ -197,7 +241,6 @@ export default function Navbar() {
                             )}
                         </ul>
                     </div>
-
                 </div>
             </div>
         </header>
